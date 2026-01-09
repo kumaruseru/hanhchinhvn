@@ -1,12 +1,30 @@
 from __future__ import annotations
 from enum import Enum
 from typing import List, Optional, Dict, ClassVar
-from pydantic import BaseModel, Field, PrivateAttr
+from pydantic import BaseModel, Field, PrivateAttr, computed_field
 import json
+import re
 from pathlib import Path
+import text_unidecode
 
 # Define the path to the data directory relative to this file
 DATA_DIR = Path(__file__).parent / "data"
+
+
+def _to_search_slug(text: str) -> str:
+    """
+    Convert Vietnamese text to a normalized slug for searching.
+    Example: "Phường Bến Nghé" -> "phuong-ben-nghe"
+    """
+    if not text:
+        return ""
+    # Convert to ASCII (remove accents)
+    ascii_text = text_unidecode.unidecode(text).lower()
+    # Replace non-alphanumeric with hyphens
+    slug = re.sub(r"[^a-z0-9]+", "-", ascii_text)
+    # Remove leading/trailing hyphens
+    return slug.strip("-")
+
 
 class DivisionType(str, Enum):
     TINH = "tinh"
@@ -18,6 +36,7 @@ class DivisionType(str, Enum):
     XA = "xa"
     THI_TRAN = "thi-tran"
 
+
 class AdministrativeUnit(BaseModel):
     name: str
     slug: str
@@ -27,6 +46,17 @@ class AdministrativeUnit(BaseModel):
     parent_code: Optional[str] = None
     path: Optional[str] = None
     path_with_type: Optional[str] = None
+
+    @computed_field
+    @property
+    def search_slug(self) -> str:
+        """
+        Tạo slug chuẩn hóa để tìm kiếm bất chấp dấu câu/viết tắt.
+        Hỗ trợ fuzzy matching với các API vận chuyển (GHN, GHTK...).
+        
+        Example: "Phường Bến Nghé" -> "phuong-ben-nghe"
+        """
+        return _to_search_slug(self.name_with_type)
 
 class Ward(AdministrativeUnit):
     pass
